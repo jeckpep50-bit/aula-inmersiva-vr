@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { EscenaBase } from './base.js';
+import { suavizado } from '../core/efectos.js';
 import { PanelLienzo, COLORES, escribir, tarjeta, pastilla } from '../ui/lienzo.js';
 
 const COLOR_ETIQUETA = { bueno: COLORES.verde, malo: COLORES.rojo, neutral: COLORES.primario };
@@ -24,15 +25,19 @@ export class EscenaExploracion extends EscenaBase {
     this.info.position.set(0, H - 0.36, -1.12);
     this.info.lookAt(0, H + 0.1, 0.1);
     this.raiz.add(this.info);
+    this.presentar(this.info, 0.15);
 
     // Una sola fila en arco: con muchos elementos el arco se abre hasta 160°
     // y el estudiante gira la cabeza para explorar (nada queda tapado por el panel).
     const n = elementos.length;
     const paso = THREE.MathUtils.degToRad(Math.min(24, 160 / Math.max(n - 1, 1)));
-    elementos.forEach((el, i) => {
+    this.nodos = elementos.map((el, i) => {
       const angulo = (i - (n - 1) / 2) * paso;
-      this._crearElemento(el, angulo, H + 0.03 + (i % 2) * 0.07);
+      const nodo = this._crearElemento(el, angulo, H + 0.03 + (i % 2) * 0.07);
+      this.presentar(nodo, 0.3 + i * 0.12, true);
+      return nodo;
     });
+    this.mirarAlUsuario(this.nodos);
   }
 
   _crearElemento(el, angulo, y) {
@@ -43,14 +48,42 @@ export class EscenaExploracion extends EscenaBase {
     const etiqueta = this.etiqueta(el.nombre, { ancho: 0.32, alto: 0.07, tam: 32 });
     etiqueta.position.set(0, -modelo.userData.tam.y / 2 - 0.07, 0);
     nodo.add(etiqueta);
+    const halo = this.halo(tam * 1.5, COLOR_ETIQUETA[el.etiqueta ?? 'neutral']);
+    halo.position.z = -tam * 0.4;
+    nodo.add(halo);
     this.enArco(nodo, angulo, 1.45, y);
+    nodo.userData.base = nodo.position.clone();
+    nodo.userData.modelo = modelo;
     this.raiz.add(nodo);
 
     this.interactivo(nodo, {
       proxy: true,
-      alPasar: (v) => modelo.scale.setScalar(v ? 1.12 : 1),
+      alPasar: (v) => {
+        modelo.scale.setScalar(v ? 1.12 : 1);
+        halo.userData.encendido = v;
+      },
       alSeleccionar: () => this._descubrir(el, nodo, etiqueta),
     });
+    return nodo;
+  }
+
+  /** El microbio elegido se acerca al estudiante dando una vuelta y luego regresa a su lugar. */
+  _acercar(nodo) {
+    if (this._cerca && this._cerca !== nodo) this._alejar(this._cerca);
+    this._cerca = nodo;
+    const destino = nodo.userData.base.clone().multiplyScalar(0.6);
+    destino.y = this.H + 0.13;
+    this.m.fx.moverA(nodo, destino, 0.7, suavizado.entradaSalida);
+    this.m.fx.girar(nodo.userData.modelo, 1.1);
+    const turno = (nodo.userData.turno = (nodo.userData.turno ?? 0) + 1);
+    this.m.fx.tween({ duracion: 7 }).then(() => {
+      if (!this._destruida && this._cerca === nodo && nodo.userData.turno === turno) this._alejar(nodo);
+    });
+  }
+
+  _alejar(nodo) {
+    if (this._cerca === nodo) this._cerca = null;
+    this.m.fx.moverA(nodo, nodo.userData.base, 0.8, suavizado.entradaSalida);
   }
 
   _descubrir(el, nodo, etiqueta) {
@@ -59,12 +92,13 @@ export class EscenaExploracion extends EscenaBase {
     this.seleccion = el;
     this.info.redibujar();
     this.m.fx.latido(this.info, 0.04);
-    this.m.fx.latido(nodo, 0.25);
+    this._acercar(nodo);
     this.m.audio.pop(this.posMundo(nodo));
     this.narrar(`${el.nombre}. ${el.texto}`);
     if (!nuevo) return;
 
     etiqueta.actualizar({ texto: `✔ ${el.nombre}`, fondo: COLOR_ETIQUETA[el.etiqueta ?? 'neutral'], color: '#ffffff' });
+    this.m.fx.confeti(this.posMundo(nodo), 14);
     const total = this.datos.elementos.length;
     this.cabecera.derecha(this.t('descubiertos', { n: this.descubiertos.size, total }));
     if (this.descubiertos.size === this.minimo) {

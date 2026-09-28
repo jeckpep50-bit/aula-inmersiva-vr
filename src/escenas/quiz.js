@@ -20,6 +20,7 @@ export class EscenaQuiz extends EscenaBase {
     this.panel.position.set(0, H + 0.26, -1.55);
     this.panel.lookAt(0, H, 0);
     this.raiz.add(this.panel);
+    this.presentar(this.panel);
 
     this.soporte = new THREE.Group();
     this.soporte.position.set(-0.98, H + 0.12, -1.3);

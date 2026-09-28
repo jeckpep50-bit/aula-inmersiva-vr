@@ -28,6 +28,7 @@ const TEXTOS = {
     etiquetaBueno: '😊 Microbio amigo',
     etiquetaMalo: '⚠️ Puede enfermarnos',
     etiquetaNeutral: '💡 Dato',
+    consejoMovimiento: '🕹️ Palanca: adelante para moverte · a los lados para girar',
   },
   en: {
     escenaDe: 'Part {n} of {total}',
@@ -57,6 +58,7 @@ const TEXTOS = {
     etiquetaBueno: '😊 Friendly microbe',
     etiquetaMalo: '⚠️ Can make us sick',
     etiquetaNeutral: '💡 Fact',
+    consejoMovimiento: '🕹️ Thumbstick: forward to move · sideways to turn',
   },
 };
 

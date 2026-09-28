@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mat, malla, fusionar } from './materiales.js';
 import { objetos, mesa } from './prefabs/objetos.js';
+import { darVida } from './vida.js';
 
 // Cada entorno es un decorado estático (fusionado en pocas mallas) alrededor
 // del usuario, que está en el origen mirando hacia -Z. Todo el contenido
@@ -183,14 +184,14 @@ const ENTORNOS = {
     }
     g.add(burbujas);
     const m = new THREE.Matrix4();
-    contexto.actualizar = (dt, t) => {
+    contexto.cada((dt, t) => {
       datos.forEach((d, i) => {
         d.y = (d.y + d.v * dt) % 9;
         m.makeScale(d.s, d.s, d.s).setPosition(d.x + Math.sin(t * 0.3 + i) * 0.3, d.y - 0.5, d.z);
         burbujas.setMatrixAt(i, m);
       });
       burbujas.instanceMatrix.needsUpdate = true;
-    };
+    });
     // Células gigantes a lo lejos
     for (const [x, y, z, s, c] of [[-8, 3, -12, 2, '#ff8fd1'], [9, 4, -10, 1.6, '#b56cff'], [-11, 2, 4, 1.8, '#4fc08d'], [10, 2.5, 6, 1.4, '#ffc23c']]) {
       g.add(malla(new THREE.SphereGeometry(s, 24, 16), mat(c, { tipo: 'basica', opacidad: 0.22 }), [x, y, z]));
@@ -270,22 +271,41 @@ const ENTORNOS = {
     planeta.userData.noFusionar = true;
     g.add(planeta);
     g.add(malla(new THREE.SphereGeometry(2.5, 28, 20), mat('#ffb74d'), [16, 10, -18]));
-    contexto.actualizar = (dt) => (planeta.rotation.y += dt * 0.05);
+    contexto.cada((dt) => (planeta.rotation.y += dt * 0.05));
     return { fondo: '#02030a', luz: [0xdfe7ff, 0x1a1f3a, 2.2] };
   },
 };
 
-/** Crea un entorno por nombre. Devuelve { grupo, actualizar? }. */
-export function crearEntorno(nombre, app) {
-  const construir = ENTORNOS[nombre] ?? ENTORNOS.aula;
+/**
+ * Crea un entorno por nombre. Devuelve { grupo, actualizar(dt, t), detener() }.
+ * opciones: { audio, titulo, subtitulo } (el título se escribe en la pizarra del aula).
+ */
+export function crearEntorno(nombre, app, { audio, titulo = '', subtitulo = '' } = {}) {
+  if (!ENTORNOS[nombre]) nombre = 'aula';
   const grupo = new THREE.Group();
-  const contexto = {};
-  const { fondo, niebla, luz } = construir(grupo, contexto);
+  const actualizadores = [];
+  const detenedores = [];
+  const contexto = {
+    app,
+    audio,
+    titulo,
+    subtitulo,
+    cada: (fn) => actualizadores.push(fn),
+    alDetener: (fn) => detenedores.push(fn),
+  };
+  const { fondo, niebla, luz } = ENTORNOS[nombre](grupo, contexto);
   fusionar(grupo);
+  // Lo animado se agrega después de fusionar para que siga moviéndose.
+  darVida(nombre, grupo, contexto);
   app.escena.background = new THREE.Color(fondo);
   app.escena.fog = niebla ? new THREE.Fog(niebla[0], niebla[1], niebla[2]) : null;
   app.hemi.color.set(luz[0]);
   app.hemi.groundColor.set(luz[1]);
   app.hemi.intensity = luz[2];
-  return { grupo, actualizar: contexto.actualizar };
+  return {
+    nombre,
+    grupo,
+    actualizar: (dt, t) => actualizadores.forEach((fn) => fn(dt, t)),
+    detener: () => detenedores.splice(0).forEach((fn) => fn()),
+  };
 }

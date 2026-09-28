@@ -4,6 +4,8 @@ import { liberar } from '../mundo/materiales.js';
 import { crearBoton, crearEtiqueta } from '../ui/componentes.js';
 import { PanelLienzo, COLORES, escribir, tarjeta, pastilla, fuente } from '../ui/lienzo.js';
 
+let texturaHalo = null;
+
 /**
  * Base de todas las escenas. `m` es el motor: { app, entrada, audio, fx, t, leccion }.
  * Sistema de coordenadas de `raiz`: el usuario está en el origen mirando a -Z,
@@ -20,11 +22,20 @@ export class EscenaBase {
     this._interactivos = [];
     this._quitar = [];
     this._terminada = false;
+    this._presentaciones = [];
     this.alTerminar = null;
   }
 
   construir() {}
-  iniciar() {}
+
+  /** Se llama cuando termina el fundido: aquí aparecen los objetos marcados con presentar(). */
+  iniciar() {
+    for (const { obj, retardo, sonido } of this._presentaciones) {
+      this.m.fx.aparecer(obj, 0.5, retardo);
+      if (sonido) this.m.fx.tween({ duracion: 0.01, retardo }).then(() => !this._destruida && this.m.audio.burbuja(this.posMundo(obj)));
+    }
+    this._presentaciones = [];
+  }
 
   terminar() {
     if (this._terminada) return;
@@ -45,6 +56,74 @@ export class EscenaBase {
 
   get t() {
     return this.m.t;
+  }
+
+  /** Oculta el objeto y lo hace aparecer con un rebote al empezar la escena (en cascada según el retardo). */
+  presentar(obj, retardo = 0, sonido = false) {
+    obj.userData.escalaAparecer = obj.scale.x || 1;
+    obj.scale.setScalar(0.001);
+    this._presentaciones.push({ obj, retardo, sonido });
+    return obj;
+  }
+
+  /**
+   * Hace que los objetos giren suavemente para mirar al usuario (solo en el eje
+   * vertical). Así siguen de frente aunque el estudiante se mueva por la escena.
+   * Los objetos con userData.fijo = true no giran.
+   */
+  mirarAlUsuario(objetos) {
+    const cabeza = new THREE.Vector3();
+    const pos = new THREE.Vector3();
+    const q0 = new THREE.Quaternion();
+    this.cadaCuadro((dt) => {
+      this.m.app.camara.getWorldPosition(cabeza);
+      const k = 1 - Math.exp(-dt * 5);
+      for (const o of objetos) {
+        if (o.userData.fijo || !o.parent) continue;
+        o.getWorldPosition(pos);
+        q0.copy(o.quaternion);
+        o.lookAt(cabeza.x, pos.y, cabeza.z);
+        o.quaternion.copy(q0.slerp(o.quaternion, k));
+      }
+    });
+  }
+
+  /**
+   * Resplandor circular detrás de un objeto. Brilla y late cuando
+   * userData.encendido = true (al apuntarlo).
+   */
+  halo(tam, color = COLORES.amarillo) {
+    if (!texturaHalo) {
+      const c = document.createElement('canvas');
+      c.width = c.height = 128;
+      const x = c.getContext('2d');
+      const g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+      g.addColorStop(0, 'rgba(255,255,255,0.9)');
+      g.addColorStop(0.35, 'rgba(255,255,255,0.35)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      x.fillStyle = g;
+      x.fillRect(0, 0, 128, 128);
+      texturaHalo = new THREE.CanvasTexture(c);
+      texturaHalo.userData.compartido = true;
+    }
+    const halo = new THREE.Mesh(
+      new THREE.PlaneGeometry(tam, tam),
+      new THREE.MeshBasicMaterial({ map: texturaHalo, color, transparent: true, opacity: 0.12, depthWrite: false, blending: THREE.AdditiveBlending }),
+    );
+    this.cadaCuadro((dt, t) => {
+      const meta = halo.userData.encendido ? 0.75 + Math.sin(t * 6) * 0.15 : 0.12;
+      halo.material.opacity += (meta - halo.material.opacity) * Math.min(1, dt * 8);
+      halo.scale.setScalar(halo.userData.encendido ? 1.15 : 1);
+    });
+    return halo;
+  }
+
+  /** Balanceo suave de flotación (sobre el hijo, para no chocar con los movimientos del nodo). */
+  flotar(obj, amplitud = 0.012) {
+    const fase = Math.random() * Math.PI * 2;
+    this.cadaCuadro((_dt, t) => {
+      if (!obj.userData.quieto) obj.position.y = Math.sin(t * 1.4 + fase) * amplitud;
+    });
   }
 
   cadaCuadro(fn) {
@@ -124,6 +203,7 @@ export class EscenaBase {
     });
     panel.position.set(0, y, z);
     panel.lookAt(0, this.H, 0);
+    this.presentar(panel);
     panel.mensaje = (texto, color = COLORES.texto) => {
       estado.mensaje = texto;
       estado.colorMensaje = color;

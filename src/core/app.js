@@ -34,6 +34,8 @@ export class App {
     this.escena.add(this.hemi, this.sol);
 
     this.alturaOjos = ALTURA_ESCRITORIO;
+    // Área donde el usuario puede moverse (la fija cada escena al anclarse).
+    this.limites = { centro: new THREE.Vector3(), radio: 2.3 };
     this.tiempo = 0;
     this._actualizadores = new Set();
     this._alReiniciarReferencia = new Set();
@@ -78,6 +80,8 @@ export class App {
     await this.renderer.xr.setSession(sesion);
     sesion.addEventListener('end', () => {
       this.camara.position.set(0, ALTURA_ESCRITORIO, 0);
+      this.rig.position.set(0, 0, 0);
+      this.rig.rotation.set(0, 0, 0);
       this.alturaOjos = ALTURA_ESCRITORIO;
       for (const fn of this._alSalirVR) fn();
     });
@@ -117,6 +121,9 @@ export class App {
     this.camara.getWorldDirection(dir);
     grupo.position.set(pos.x, 0, pos.z);
     grupo.rotation.set(0, Math.atan2(-dir.x, -dir.z), 0);
+    // El área de movimiento se centra un poco por delante, entre el usuario y la actividad.
+    const plano = dir.setY(0).normalize();
+    this.limites.centro.set(pos.x + plano.x * 0.8, 0, pos.z + plano.z * 0.8);
     this.alturaOjos = THREE.MathUtils.clamp(this.enVR ? pos.y : ALTURA_ESCRITORIO, 0.9, 1.85);
   }
 

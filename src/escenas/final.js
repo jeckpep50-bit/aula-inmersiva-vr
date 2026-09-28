@@ -18,6 +18,7 @@ export class EscenaFinal extends EscenaBase {
     panel.lookAt(0, H, 0);
     this.raiz.add(panel);
     this.panel = panel;
+    this.presentar(panel);
 
     for (const [x, modelo] of [[-0.85, 'estrella'], [0.85, 'estrella']]) {
       const m = this.modelo(modelo, { tamano: 0.22 });
@@ -32,6 +33,7 @@ export class EscenaFinal extends EscenaBase {
   }
 
   iniciar() {
+    super.iniciar();
     this.m.audio.exito();
     this.m.fx.confeti(this.posMundo(this.panel).add(new THREE.Vector3(0, 0.1, 0.3)), 120);
     this.narrar(`${this.t('leccionCompletada')} ${this.t('quitateGafas')}`);

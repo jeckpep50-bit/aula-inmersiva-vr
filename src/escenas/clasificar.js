@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { EscenaBase } from './base.js';
+import { suavizado } from '../core/efectos.js';
 import { PanelLienzo, COLORES, escribir } from '../ui/lienzo.js';
 import { mat, malla } from '../mundo/materiales.js';
 
@@ -32,17 +33,21 @@ export class EscenaClasificar extends EscenaBase {
     const categorias = this.datos.categorias ?? [];
     const sep = categorias.length <= 2 ? 0.62 : 0.54;
     this.cajas = categorias.map((cat, k) => this._crearCaja(cat, (k - (categorias.length - 1) / 2) * sep, PALETA[k % PALETA.length]));
+    this.cajas.forEach((caja, k) => this.presentar(caja, 0.15 + k * 0.15));
 
     const n = this.elementos.length;
     const filas = n > 5 ? 2 : 1;
     const porFila = Math.ceil(n / filas);
     const paso = THREE.MathUtils.degToRad(Math.min(24, 120 / Math.max(porFila - 1, 1)));
-    this.elementos.forEach((el, i) => {
+    const nodos = this.elementos.map((el, i) => {
       const fila = Math.floor(i / porFila);
       const col = i % porFila;
       const enFila = fila === filas - 1 ? n - porFila * fila : porFila;
-      this._crearElemento(el, (col - (enFila - 1) / 2) * paso, H - 0.02 - fila * 0.3);
+      const nodo = this._crearElemento(el, (col - (enFila - 1) / 2) * paso, H - 0.02 - fila * 0.3);
+      this.presentar(nodo, 0.5 + i * 0.1, true);
+      return nodo;
     });
+    this.mirarAlUsuario(nodos);
   }
 
   _crearCaja(cat, x, colorBase) {
@@ -105,17 +110,48 @@ export class EscenaClasificar extends EscenaBase {
       etiqueta.position.set(0, -modelo.userData.tam.y / 2 - 0.05, 0.02);
       nodo.add(etiqueta);
     }
+    const halo = this.halo(esTarjeta ? 0.42 : 0.34, COLORES.amarillo);
+    halo.position.z = -0.08;
+    nodo.add(halo);
     this.enArco(nodo, angulo, 1.25, y);
     nodo.userData = { ...nodo.userData, el, etiqueta, origen: nodo.position.clone(), modelo };
     this.raiz.add(nodo);
+    this.flotar(modelo);
+
+    // Al arrastrar, el objeto se inclina según la velocidad (como si tuviera peso).
+    const previa = new THREE.Vector3();
+    const inclinacion = { x: 0, z: 0 };
+    this.cadaCuadro((dt) => {
+      const k = Math.min(1, dt * 10);
+      modelo.rotation.z += (inclinacion.z - modelo.rotation.z) * k;
+      modelo.rotation.x += (inclinacion.x - modelo.rotation.x) * k;
+      inclinacion.x *= 0.9;
+      inclinacion.z *= 0.9;
+    });
 
     this.interactivo(nodo, {
       proxy: true,
       agarrable: true,
-      alPasar: (v) => nodo !== this.pendiente && modelo.scale.setScalar(v ? 1.1 : 1),
-      alAgarrar: () => this._marcarPendiente(null),
-      alMoverAgarrado: (_p, pos) => this._resaltarCaja(this._cajaBajo(pos)),
+      alPasar: (v) => {
+        if (nodo !== this.pendiente) modelo.scale.setScalar(v ? 1.1 : 1);
+        halo.userData.encendido = v;
+      },
+      alAgarrar: () => {
+        this._marcarPendiente(null);
+        modelo.userData.quieto = true;
+        modelo.scale.setScalar(1.15);
+        nodo.getWorldPosition(previa);
+      },
+      alMoverAgarrado: (_p, pos) => {
+        const vel = pos.clone().sub(previa);
+        previa.copy(pos);
+        inclinacion.z = THREE.MathUtils.clamp(-vel.x * 25, -0.6, 0.6);
+        inclinacion.x = THREE.MathUtils.clamp(vel.z * 25, -0.5, 0.5);
+        this._resaltarCaja(this._cajaBajo(pos));
+      },
       alSoltar: (_p, pos, movido) => {
+        modelo.userData.quieto = false;
+        modelo.scale.setScalar(1);
         const caja = this._cajaBajo(pos);
         this._resaltarCaja(null);
         if (caja) this._evaluar(nodo, caja);
@@ -125,6 +161,7 @@ export class EscenaClasificar extends EscenaBase {
         }
       },
     });
+    return nodo;
   }
 
   _cajaBajo(pos) {
@@ -181,9 +218,24 @@ export class EscenaClasificar extends EscenaBase {
     this.m.fx.confeti(pos.clone().add(new THREE.Vector3(0, 0.2, 0)), 30);
     this.cabecera.mensaje(`✅ ${this.t('correcto')} ${el.explicacion ?? ''}`, COLORES.verde);
     this.narrar(el.explicacion);
+    // Salta dando una vuelta hasta el fondo de la caja, y la caja rebota al recibirlo.
     const dentro = caja.position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.18, 0.12, (Math.random() - 0.5) * 0.1));
-    this.m.fx.moverA(nodo, dentro, 0.4);
-    this.m.fx.escalarA(nodo, 0.55, 0.4);
+    const inicio = nodo.position.clone();
+    nodo.userData.movimiento?.cancelar();
+    nodo.userData.fijo = true;
+    nodo.userData.modelo.userData.quieto = true;
+    this.m.fx.girar(nodo.userData.modelo, 0.6);
+    this.m.fx.escalarA(nodo, 0.55, 0.6);
+    this.m.fx
+      .tween({
+        duracion: 0.6,
+        curva: suavizado.entradaSalida,
+        alActualizar: (k) => {
+          nodo.position.lerpVectors(inicio, dentro, k);
+          nodo.position.y += Math.sin(k * Math.PI) * 0.2;
+        },
+      })
+      .then(() => !this._destruida && this.m.fx.latido(caja, 0.12));
     nodo.userData.etiqueta && (nodo.userData.etiqueta.visible = false);
 
     this.aciertos++;
