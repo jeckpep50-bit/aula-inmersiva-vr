@@ -28,13 +28,9 @@ Atajos útiles: `?leccion=<id>` abre una lección y `?escena=4` empieza en la es
 
 ## Uso en clase (20 gafas)
 
-La app está publicada en **GitHub Pages**. Para subir los cambios (por ejemplo, una lección nueva):
-
-```bash
-npm run publicar
-```
-
-El comando valida las lecciones, compila la app y la sube a la rama `gh-pages`. La dirección es:
+La app se publica sola en **GitHub Pages** cada vez que se sube un cambio a `main`
+(por ejemplo, una lección nueva). La acción `.github/workflows/pages.yml` valida las lecciones,
+compila y publica; en los pull requests solo valida y compila. La dirección es:
 
 **https://jeckpep50-bit.github.io/aula-inmersiva-vr/**
 
