@@ -28,11 +28,20 @@ Atajos útiles: `?leccion=<id>` abre una lección y `?escena=4` empieza en la es
 
 ## Uso en clase (20 gafas)
 
-1. `npm run build` crea la carpeta `dist/` con la app lista.
-2. Sube `dist/` a un hosting con HTTPS: Netlify (arrastrar y soltar la carpeta), GitHub Pages,
-   Vercel o el servidor del colegio.
-3. En cada gafa, abre la dirección y guárdala en favoritos. Por ejemplo:
-   `https://tu-sitio/?leccion=microorganismos-alimentos`.
+La app está publicada en **GitHub Pages**. Para subir los cambios (por ejemplo, una lección nueva):
+
+```bash
+npm run publicar
+```
+
+El comando valida las lecciones, compila la app y la sube a la rama `gh-pages`. La dirección es:
+
+**https://jeckpep50-bit.github.io/aula-inmersiva-vr/**
+
+En cada gafa, abre la lección y guárdala en favoritos:
+`https://jeckpep50-bit.github.io/aula-inmersiva-vr/?leccion=microorganismos-alimentos`
+
+Si una lección tiene errores, el validador detiene la publicación y la versión anterior sigue en línea.
 
 No hay cuentas ni se guardan datos de los estudiantes. Cada gafa funciona por su cuenta.
 

@@ -10,7 +10,8 @@
     "build": "vite build",
     "preview": "vite preview --host",
     "validar": "node scripts/validar-lecciones.mjs",
-    "generar": "node scripts/generar-leccion.mjs"
+    "generar": "node scripts/generar-leccion.mjs",
+    "publicar": "node scripts/publicar.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
