@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { crearTraductor } from '../core/i18n.js';
+import { suavizado } from '../core/efectos.js';
 import { crearEntorno } from '../mundo/entornos.js';
 import { liberar } from '../mundo/materiales.js';
 import { EscenaNarrativa } from '../escenas/narrativa.js';
@@ -60,16 +61,19 @@ export class Motor {
 
     const datos = this.leccion.escenas[indice];
     const nombreEntorno = datos?.entorno ?? this.nombreEntorno ?? 'aula';
-    if (nombreEntorno !== this.nombreEntorno) {
-      if (this.entorno) {
-        liberar(this.entorno.grupo);
-        this.entorno.grupo.removeFromParent();
-      }
-      this.entorno = crearEntorno(nombreEntorno, this.app);
+    const entornoNuevo = nombreEntorno !== this.nombreEntorno;
+    if (entornoNuevo) {
+      this._quitarEntorno();
+      this.entorno = crearEntorno(nombreEntorno, this.app, {
+        audio: this.audio,
+        titulo: this.leccion.titulo,
+        subtitulo: [this.leccion.materia, this.leccion.grado].filter(Boolean).join(' · '),
+      });
       this.nombreEntorno = nombreEntorno;
       this.anclaje.add(this.entorno.grupo);
     }
     this.app.anclarDelanteDelUsuario(this.anclaje);
+    if (entornoNuevo) this._entradaAlEntorno(nombreEntorno);
 
     const Clase = datos ? TIPOS[datos.tipo] : EscenaFinal;
     const escena = new Clase(this, datos ?? { titulo: this.leccion.titulo }, indice, this.total);
@@ -87,10 +91,38 @@ export class Motor {
     this.irA(0);
   }
 
+  /**
+   * El entorno nuevo aparece "creciendo" alrededor del usuario. En el mundo
+   * microscópico crece mucho más: se siente como encogerse al tamaño de un microbio.
+   */
+  _entradaAlEntorno(nombre) {
+    const grupo = this.entorno.grupo;
+    const desde = nombre === 'microscopico' ? 0.25 : 0.9;
+    grupo.scale.setScalar(desde);
+    this.fx.tween({
+      duracion: nombre === 'microscopico' ? 2.2 : 0.9,
+      persistente: true,
+      curva: suavizado.salida,
+      alActualizar: (k) => grupo.scale.setScalar(desde + (1 - desde) * k),
+    });
+    if (nombre === 'microscopico') this.audio.tono(900, 1.6, { hasta: 120, volumen: 0.06 });
+  }
+
+  _quitarEntorno() {
+    if (!this.entorno) return;
+    this.entorno.detener();
+    liberar(this.entorno.grupo);
+    this.entorno.grupo.removeFromParent();
+    this.entorno = null;
+    this.nombreEntorno = null;
+  }
+
   detener() {
     this.escena?.destruir();
     this.escena = null;
+    this._quitarEntorno();
     this.fx.limpiar();
     this.audio.callar();
+    this._ocupado = false;
   }
 }

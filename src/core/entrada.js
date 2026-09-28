@@ -232,6 +232,11 @@ export class Entrada {
     if (p.pasando === info) return;
     p.pasando?.cfg.alPasar?.(false, p);
     p.pasando = info;
+    if (p.rayo) {
+      p.rayo.material.color.set(info ? '#ffd54f' : '#ffffff');
+      p.rayo.material.opacity = info ? 0.95 : 0.45;
+    }
+    p.cursor.material.color.set(info ? '#ffd54f' : '#ffffff');
     if (info) {
       info.cfg.alPasar?.(true, p);
       p.vibrar(0.15, 12);
@@ -271,7 +276,10 @@ export class Entrada {
     const enVR = this.app.enVR;
     for (const p of this.punteros) {
       const usable = p.activo && (p.tipo === 'xr' ? enVR : !enVR);
-      if (!usable) {
+      if (p.rayo) p.rayo.visible = usable && !p.suspendido;
+      if (!usable || p.suspendido) {
+        // suspendido: el mando está apuntando un teletransporte
+        if (p.suspendido) this._pasar(p, null);
         p.cursor.visible = false;
         continue;
       }
@@ -292,7 +300,7 @@ export class Entrada {
         p.cursor.visible = true;
         p.cursor.position.copy(p.puntoHit).addScaledVector(p.dir, -0.004);
         p.cursor.lookAt(p.origen);
-        const escala = THREE.MathUtils.clamp(p.distancia, 0.4, 3);
+        const escala = THREE.MathUtils.clamp(p.distancia, 0.4, 3) * (1 + Math.sin(this.app.tiempo * 8) * 0.15);
         p.cursor.scale.setScalar(escala);
         if (p.rayo) p.rayo.scale.z = p.distancia;
       } else {

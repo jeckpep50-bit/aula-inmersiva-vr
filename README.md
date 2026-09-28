@@ -22,7 +22,7 @@ La consola muestra dos direcciones: `Local` y `Network` (por ejemplo `https://19
 - **En las gafas:** abre el navegador de las Quest, escribe la dirección `Network` y acepta el
   aviso del certificado (*Avanzado → Continuar*). Las gafas y el PC deben estar en el mismo Wi-Fi.
   No hace falta activar el modo desarrollador.
-- **En el PC:** `npm run dev:local` abre `http://localhost:5174`, con vista previa manejada con el ratón.
+- **En el PC:** `npm run dev:local` abre `http://localhost:5174`, con vista previa manejada con el ratón (WASD o flechas para caminar).
 
 Atajos útiles: `?leccion=<id>` abre una lección y `?escena=4` empieza en la escena 4.
 
@@ -46,6 +46,8 @@ No hay cuentas ni se guardan datos de los estudiantes. Cada gafa funciona por su
 - **Mandos:** apunta con el rayo y presiona el **gatillo**. Mantenlo presionado para agarrar y arrastrar.
   El botón lateral también sirve para agarrar.
 - **Manos:** junta la punta del **índice** con el **pulgar** (pellizco).
+- **Moverse:** empuja la **palanca hacia adelante**, apunta el arco al suelo y suéltala para teletransportarte.
+  Empuja la palanca **a los lados** para girar 30°. El movimiento se limita a unos 2 m alrededor de la actividad.
 - **Recentrar:** mantén presionado el botón Meta. El contenido se vuelve a colocar delante del estudiante.
 
 El contenido se adapta a la altura de los ojos, así se puede usar de pie o sentado.

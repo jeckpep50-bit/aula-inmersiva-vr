@@ -26,12 +26,33 @@ export class Efectos {
     const promesa = new Promise((r) => (resolver = r));
     const tw = { duracion, retardo, t: 0, alActualizar, curva, persistente, resolver, alTerminar };
     this.tweens.add(tw);
+    // Permite detener una animación a medias (p. ej. un objeto que cambia de destino).
+    promesa.cancelar = () => {
+      this.tweens.delete(tw);
+      resolver();
+    };
     return promesa;
   }
 
-  moverA(obj, destino, duracion = 0.45, curva = suavizado.salida) {
+  /** Mueve `obj` a `destino`; si ya se estaba moviendo, reemplaza el movimiento anterior. */
+  moverA(obj, destino, duracion = 0.45, curva = suavizado.salida, retardo = 0) {
+    obj.userData.movimiento?.cancelar();
     const inicio = obj.position.clone();
-    return this.tween({ duracion, curva, alActualizar: (k) => obj.position.lerpVectors(inicio, destino, k) });
+    const fin = destino.clone();
+    const tw = this.tween({
+      duracion,
+      retardo,
+      curva,
+      alActualizar: (k) => obj.position.lerpVectors(inicio, fin, k),
+    });
+    obj.userData.movimiento = tw;
+    return tw;
+  }
+
+  /** Gira `obj` una vuelta completa sobre su eje vertical. */
+  girar(obj, duracion = 0.8) {
+    const y0 = obj.rotation.y;
+    return this.tween({ duracion, curva: suavizado.entradaSalida, alActualizar: (k) => (obj.rotation.y = y0 + k * Math.PI * 2) });
   }
 
   escalarA(obj, escala, duracion = 0.35, curva = suavizado.salida) {
@@ -41,15 +62,16 @@ export class Efectos {
 
   aparecer(obj, duracion = 0.45, retardo = 0) {
     // Se recuerda la escala original: si se llama dos veces seguidas no queda "encogido".
-    obj.userData.escalaAparecer ??= obj.scale.x || 1;
+    obj.userData.escalaAparecer ??= obj.scale.x > 0.01 ? obj.scale.x : 1;
     const final = obj.userData.escalaAparecer;
     obj.scale.setScalar(0.001);
     return this.tween({ duracion, retardo, curva: suavizado.rebote, alActualizar: (k) => obj.scale.setScalar(Math.max(0.001, final * k)) });
   }
 
   latido(obj, fuerza = 0.18) {
-    const base = obj.userData.escalaBase ?? obj.scale.x;
-    obj.userData.escalaBase = base;
+    // Si el objeto todavía está "apareciendo", se usa su escala final.
+    obj.userData.escalaBase ??= obj.userData.escalaAparecer ?? obj.scale.x;
+    const base = obj.userData.escalaBase;
     return this.tween({
       duracion: 0.45,
       curva: suavizado.lineal,

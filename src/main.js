@@ -2,6 +2,7 @@ import { App } from './core/app.js';
 import { Entrada } from './core/entrada.js';
 import { Audio } from './core/audio.js';
 import { Efectos } from './core/efectos.js';
+import { Locomocion } from './core/locomocion.js';
 import { Motor } from './leccion/motor.js';
 import { validarLeccion } from './leccion/validar.js';
 
@@ -12,6 +13,7 @@ const audio = new Audio();
 const entrada = new Entrada(app, audio);
 const fx = new Efectos(app);
 const motor = new Motor({ app, entrada, audio, fx });
+const locomocion = new Locomocion(app, entrada, audio, fx);
 
 const parametros = new URLSearchParams(location.search);
 let indice = [];
@@ -85,6 +87,7 @@ async function empezar(enVR) {
   } else {
     entrada.habilitarRaton = true;
     app.camara.rotation.set(0, 0, 0);
+    app.rig.position.set(0, 0, 0);
     $('ayuda-pantalla').hidden = false;
   }
   motor.irA(Math.min(inicio, leccionActual.escenas.length - 1));
@@ -118,4 +121,4 @@ $('salir-pantalla').addEventListener('click', salir);
 })();
 
 // Acceso para depurar desde la consola del navegador.
-window.aula = { app, motor, entrada, audio, fx };
+window.aula = { app, motor, entrada, audio, fx, locomocion };

@@ -43,10 +43,23 @@ export class EscenaNarrativa extends EscenaBase {
       this.raiz.add(this.btnEscuchar);
     }
     for (const b of [this.btnAtras, this.btnSiguiente, this.btnEscuchar]) b?.lookAt(0, H, 0);
-    this.ir(0);
+
+    // En la primera escena, dentro de las gafas, se recuerda cómo moverse.
+    if (this.indice === 0 && this.m.app.enVR) {
+      const consejo = this.etiqueta(this.t('consejoMovimiento'), { ancho: 1.0, alto: 0.07, tam: 30, fondo: 'rgba(20, 30, 60, 0.75)', color: '#ffffff' });
+      consejo.position.set(xBase, yBotones - 0.13, -1.4);
+      consejo.lookAt(0, H, 0);
+      this.raiz.add(consejo);
+      this.presentar(consejo, 0.6);
+    }
+
+    this.ir(0, true);
+    this.presentar(this.panel);
+    this.presentar(this.btnSiguiente, 0.25);
+    if (this.btnEscuchar) this.presentar(this.btnEscuchar, 0.3);
   }
 
-  ir(i) {
+  ir(i, inicial = false) {
     if (i >= this.pasos.length) return this.terminar();
     this.paso = Math.max(0, i);
     const paso = this.pasos[this.paso];
@@ -63,7 +76,7 @@ export class EscenaNarrativa extends EscenaBase {
       this.soporte.add(modelo);
       this.m.fx.aparecer(modelo);
     }
-    this.m.fx.latido(this.panel, 0.03);
+    if (!inicial) this.m.fx.latido(this.panel, 0.03);
     this.narrar(paso.texto);
   }
 

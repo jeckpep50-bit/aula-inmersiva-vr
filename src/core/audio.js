@@ -116,6 +116,149 @@ export class Audio {
     this.tono(300, 0.4, { hasta: 900, volumen: 0.05 });
   }
 
+  burbuja(pos) {
+    this.tono(280 + Math.random() * 200, 0.09, { hasta: 900 + Math.random() * 400, volumen: 0.05, pos });
+  }
+
+  gota(pos) {
+    this.tono(1400, 0.07, { hasta: 520, volumen: 0.09, pos });
+  }
+
+  pajaro(pos) {
+    const f = 2600 + Math.random() * 900;
+    this.tono(f, 0.08, { hasta: f * 1.3, volumen: 0.035, pos });
+    this.tono(f * 1.1, 0.1, { hasta: f * 1.45, volumen: 0.035, retardo: 0.12, pos });
+  }
+
+  teletransporte() {
+    this.tono(900, 0.18, { hasta: 300, volumen: 0.06 });
+  }
+
+  giro() {
+    this.tono(700, 0.05, { volumen: 0.03 });
+  }
+
+  // ── Ambiente ─────────────────────────────────────────────────────────────
+
+  /** Ruido marrón (grave y suave) reutilizable para los ambientes. */
+  _ruido() {
+    if (!this._bufferRuido) {
+      const n = this.ctx.sampleRate * 3;
+      this._bufferRuido = this.ctx.createBuffer(1, n, this.ctx.sampleRate);
+      const datos = this._bufferRuido.getChannelData(0);
+      let ultimo = 0;
+      for (let i = 0; i < n; i++) {
+        ultimo = (ultimo + 0.02 * (Math.random() * 2 - 1)) / 1.02;
+        datos[i] = ultimo * 3.5;
+      }
+    }
+    return this._bufferRuido;
+  }
+
+  /**
+   * Sonido de fondo continuo de un entorno.
+   * config: { frecuencia, volumen, filtro ('lowpass'|'bandpass'), oleaje (Hz de la ondulación) }
+   */
+  ambiente(config) {
+    this.detenerAmbiente();
+    if (!this.ctx || !config) return;
+    const t = this.ctx.currentTime;
+    const fuente = this.ctx.createBufferSource();
+    fuente.buffer = this._ruido();
+    fuente.loop = true;
+    const filtro = this.ctx.createBiquadFilter();
+    filtro.type = config.filtro ?? 'lowpass';
+    filtro.frequency.value = config.frecuencia ?? 400;
+    const ganancia = this.ctx.createGain();
+    ganancia.gain.setValueAtTime(0, t);
+    ganancia.gain.linearRampToValueAtTime(config.volumen ?? 0.05, t + 2);
+    fuente.connect(filtro).connect(ganancia).connect(this.maestro);
+    fuente.start();
+    let lfo = null;
+    if (config.oleaje) {
+      lfo = this.ctx.createOscillator();
+      lfo.frequency.value = config.oleaje;
+      const profundidad = this.ctx.createGain();
+      profundidad.gain.value = (config.volumen ?? 0.05) * 0.6;
+      lfo.connect(profundidad).connect(ganancia.gain);
+      lfo.start();
+    }
+    this._ambiente = { fuente, ganancia, lfo };
+  }
+
+  detenerAmbiente() {
+    const a = this._ambiente;
+    if (!a) return;
+    this._ambiente = null;
+    const t = this.ctx.currentTime;
+    a.ganancia.gain.cancelScheduledValues(t);
+    a.ganancia.gain.setValueAtTime(a.ganancia.gain.value, t);
+    a.ganancia.gain.linearRampToValueAtTime(0, t + 0.5);
+    a.fuente.stop(t + 0.6);
+    a.lfo?.stop(t + 0.6);
+  }
+
+  /**
+   * Sonido continuo que sale de un punto del espacio y se puede mover
+   * (una mosca que zumba alrededor, una refrigeradora). Devuelve { mover(pos), detener() }.
+   */
+  fuenteEspacial(tipo, pos) {
+    if (!this.ctx) return { mover() {}, detener() {} };
+    const ctx = this.ctx;
+    const panner = ctx.createPanner();
+    panner.panningModel = 'HRTF';
+    panner.distanceModel = 'inverse';
+    panner.refDistance = 0.4;
+    const ganancia = ctx.createGain();
+    ganancia.gain.value = 0;
+    ganancia.gain.linearRampToValueAtTime(tipo === 'zumbido' ? 0.05 : 0.03, ctx.currentTime + 1);
+    const nodos = [];
+    if (tipo === 'zumbido') {
+      const osc = ctx.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.value = 190 + Math.random() * 40;
+      const vibrato = ctx.createOscillator();
+      vibrato.frequency.value = 23;
+      const prof = ctx.createGain();
+      prof.gain.value = 18;
+      vibrato.connect(prof).connect(osc.frequency);
+      const filtro = ctx.createBiquadFilter();
+      filtro.type = 'bandpass';
+      filtro.frequency.value = 700;
+      filtro.Q.value = 1.2;
+      osc.connect(filtro).connect(ganancia);
+      nodos.push(osc, vibrato);
+    } else {
+      const osc = ctx.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.value = 118;
+      const osc2 = ctx.createOscillator();
+      osc2.frequency.value = 236;
+      osc.connect(ganancia);
+      osc2.connect(ganancia);
+      nodos.push(osc, osc2);
+    }
+    ganancia.connect(panner).connect(this.maestro);
+    nodos.forEach((n) => n.start());
+    const mover = (p) => {
+      const t = ctx.currentTime;
+      panner.positionX.setTargetAtTime(p.x, t, 0.05);
+      panner.positionY.setTargetAtTime(p.y, t, 0.05);
+      panner.positionZ.setTargetAtTime(p.z, t, 0.05);
+    };
+    if (pos) mover(pos);
+    return {
+      mover,
+      detener: () => {
+        const t = ctx.currentTime;
+        ganancia.gain.cancelScheduledValues(t);
+        ganancia.gain.setValueAtTime(ganancia.gain.value, t);
+        ganancia.gain.linearRampToValueAtTime(0, t + 0.3);
+        nodos.forEach((n) => n.stop(t + 0.35));
+      },
+    };
+  }
+
   // ── Narración ────────────────────────────────────────────────────────────
 
   puedeNarrar(idioma = this.idioma) {
